@@ -18,6 +18,7 @@ package drivers
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/contiv/netplugin/core"
 
@@ -68,8 +69,9 @@ func (s *OvsDriverOperState) Clear() error {
 // OvsDriver implements the Layer 2 Network and Endpoint Driver interfaces
 // specific to vlan based open-vswitch.
 type OvsDriver struct {
-	oper     OvsDriverOperState
-	switchDb map[string]*OvsSwitch
+	oper      OvsDriverOperState
+	switchDb  map[string]*OvsSwitch
+	initMutex sync.Mutex
 }
 
 func (d *OvsDriver) getIntfName() string {
@@ -78,6 +80,9 @@ func (d *OvsDriver) getIntfName() string {
 
 // Init initializes the OVS driver.
 func (d *OvsDriver) Init(config *core.Config, info *core.InstanceInfo) error {
+	fmt.Println("init acquire")
+	d.initMutex.Lock()
+	defer d.initMutex.Unlock()
 
 	if config == nil || info == nil || info.StateDriver == nil {
 		return core.Errorf("Invalid arguments. cfg: %+v, instance-info: %+v",
@@ -127,13 +132,14 @@ func (d *OvsDriver) Init(config *core.Config, info *core.InstanceInfo) error {
 	d.switchDb["vlan"], err = NewOvsSwitch(vlanBridgeName, "vlan", info.VtepIP)
 	if err != nil {
 		log.Fatalf("Error creating vlan switch. Err: %v", err)
+		return err
 	}
 
 	// Add uplink to VLAN switch
 	if info.VlanIntf != "" {
-		err = d.switchDb["vlan"].AddUplinkPort(info.VlanIntf)
-		if err != nil {
+		if err := d.switchDb["vlan"].AddUplinkPort(info.VlanIntf); err != nil {
 			log.Errorf("Could not add uplink %s to vlan OVS. Err: %v", info.VlanIntf, err)
+			return err
 		}
 	}
 
@@ -142,6 +148,10 @@ func (d *OvsDriver) Init(config *core.Config, info *core.InstanceInfo) error {
 
 // Deinit performs cleanup prior to destruction of the OvsDriver
 func (d *OvsDriver) Deinit() {
+	fmt.Println("deinit acquire")
+	d.initMutex.Lock()
+	defer d.initMutex.Unlock()
+
 	log.Infof("Cleaning up ovsdriver")
 
 	// cleanup both vlan and vxlan OVS instances

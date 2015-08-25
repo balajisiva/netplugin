@@ -170,8 +170,7 @@ func initOvsDriver(t *testing.T) *OvsDriver {
 }
 
 func TestOvsDriverInit(t *testing.T) {
-	driver := initOvsDriver(t)
-	defer func() { driver.Deinit() }()
+	initOvsDriver(t).Deinit()
 }
 
 func TestOvsDriverInitStatefulStart(t *testing.T) {
@@ -203,7 +202,7 @@ func TestOvsDriverInitStatefulStart(t *testing.T) {
 			testCurrPortNum, driver.oper.CurrPortNum)
 	}
 
-	defer func() { driver.Deinit() }()
+	driver.Deinit()
 }
 
 func TestOvsDriverInitInvalidConfig(t *testing.T) {
